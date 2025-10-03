@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using RetailShopApi.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace RetailShopApi.Controllers
 {
@@ -16,7 +17,11 @@ namespace RetailShopApi.Controllers
 
         }
         [HttpGet]
-
+        public async Task<IActionResult> GetProducts()
+        {
+            var products = await _context.Products.ToListAsync();
+            return Ok(products);
+        }
 
     }
 }
