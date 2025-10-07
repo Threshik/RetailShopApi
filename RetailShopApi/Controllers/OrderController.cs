@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RetailShopApi.Data;
-using RetailShopApi.Models;
+using RetailShopApi.Models.Entity;
 using RetailShopApi.Services.Interfaces;
 
 namespace RetailShopApi.Controllers
