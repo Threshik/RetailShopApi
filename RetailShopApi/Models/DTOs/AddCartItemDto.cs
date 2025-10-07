@@ -1,4 +1,4 @@
-﻿namespace RetailShopApi.DTOs
+﻿namespace RetailShopApi.Models.DTOs
 {
     public class AddCartItemDto
     {

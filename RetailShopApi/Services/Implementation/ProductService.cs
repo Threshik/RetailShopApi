@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using RetailShopApi.Data;
-using RetailShopApi.DTOs;
-using RetailShopApi.Models;
+using RetailShopApi.Models.DTOs;
+using RetailShopApi.Models.Entity;
 using RetailShopApi.Services.Interfaces;
 
 namespace RetailShopApi.Services.Implementation
@@ -14,10 +14,11 @@ namespace RetailShopApi.Services.Implementation
         {
             _context = context;
         }
-        public async Task<ProductDto> CreateProductAsync(CreateProductDto dto)
+        public async Task<ProductDto> CreateProductAsync(ProductDto dto)
         {
             var product = new Product
             {
+                Id = dto.Id,
                 Name = dto.Name,
                 Description = dto.Description,
                 Price = dto.Price,

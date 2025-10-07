@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using RetailShopApi.DTOs;
+using RetailShopApi.Models.DTOs;
 
 namespace RetailShopApi.Services.Interfaces
 {
@@ -7,7 +7,7 @@ namespace RetailShopApi.Services.Interfaces
     {
         Task<IEnumerable<ProductDto>> GetAllProductsAsync();
         Task<ProductDto> GetProductByIdAsync(int id);
-        Task<ProductDto> CreateProductAsync(CreateProductDto dto);
+        Task<ProductDto> CreateProductAsync(ProductDto dto);
         Task<ProductDto> UpdateProductAsync(int id, CreateProductDto dto);
         Task<bool> DeleteProductAsync(int id);
 

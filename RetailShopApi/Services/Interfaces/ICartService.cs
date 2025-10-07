@@ -1,4 +1,4 @@
-﻿using RetailShopApi.DTOs;
+﻿using RetailShopApi.Models.DTOs;
 
 namespace RetailShopApi.Services.Interfaces
 {

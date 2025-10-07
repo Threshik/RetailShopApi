@@ -1,4 +1,4 @@
-﻿namespace RetailShopApi.Models
+﻿namespace RetailShopApi.Models.Entity
 {
     public class OrderItem
     {

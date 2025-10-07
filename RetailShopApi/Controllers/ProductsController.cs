@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RetailShopApi.Data;
-using RetailShopApi.DTOs;
-using RetailShopApi.Models;
+using RetailShopApi.Models.DTOs;
+using RetailShopApi.Models.Entity;
 using RetailShopApi.Services.Interfaces;
 
 namespace RetailShopApi.Controllers
@@ -36,7 +36,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<Product>> CreateProduct(CreateProductDto dto)
+        public async Task<ActionResult<Product>> CreateProduct(ProductDto dto)
         {
             var product = await _productService.CreateProductAsync(dto);
             return CreatedAtAction(nameof(GetProductById), new { id = product.Id }, product);

@@ -1,12 +1,12 @@
-﻿using RetailShopApi.Models;
-
-namespace RetailShopApi.DTOs
+﻿namespace RetailShopApi.Models.Entity
 {
-    public class CartItemDto
+    public class CartItem
     {
         public int Id { get; set; }
         public int ProductId { get; set; }
-        public Product? Product { get; set; }
+        public  Product? Product { get; set; }
+
         public int Quantity { get; set; }
+
     }
 }
