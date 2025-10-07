@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RetailShopApi.Data;
 using RetailShopApi.Models;
+using RetailShopApi.Services.Interfaces;
 
 namespace RetailShopApi.Controllers
 {
@@ -10,68 +11,27 @@ namespace RetailShopApi.Controllers
     [ApiController]
     public class OrderController : ControllerBase
     {
-        private readonly ProductDbContext _context;
+        private readonly IOrderService _orderService;
 
-        public OrderController(ProductDbContext context)
+        public OrderController(IOrderService orderService)
         {
-            _context = context;
+            _orderService = orderService;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders()
         {
-            return await _context.Orders
-                .Include(o => o.OrderItems)           // include order items
-                .ThenInclude(oi => oi.Product)        // and include the product info inside each item
-                .ToListAsync();
+            var orders = await _orderService.GetAllOrdersAsync();
+            return Ok(orders);
         }
 
         [HttpPost("place")]
         public async Task<IActionResult> PlaceOrder()
         {
-            
-            var cartItems = await _context.CartItems
-                .Include(c => c.Product)
-                .ToListAsync();
 
-            
-            if (cartItems == null || !cartItems.Any())
-            {
+            var success = await _orderService.PlaceOrderAsync();
+            if (!success)
                 return BadRequest(new { message = "Cart is empty." });
-            }
-
-            
-            var totalAmount = cartItems.Sum(item => item.Product.Price * item.Quantity);
-
-            
-            var newOrder = new Order
-            {
-                OrderDate = DateTime.UtcNow,
-                TotalAmount = totalAmount,
-                OrderItems = new List<OrderItem>() 
-            };
-
-            
-            foreach (var cartItem in cartItems)
-            {
-                var orderItem = new OrderItem
-                {
-                    ProductId = cartItem.ProductId,     
-                    Quantity = cartItem.Quantity,
-                    Product = cartItem.Product,         
-                    Order = newOrder                    
-                };
-
-                newOrder.OrderItems.Add(orderItem);     
-            }
-
-            
-            _context.Orders.Add(newOrder);
-            await _context.SaveChangesAsync();
-
-            
-            _context.CartItems.RemoveRange(cartItems);
-            await _context.SaveChangesAsync();
 
             return Ok(new { message = "Order placed successfully." });
         }

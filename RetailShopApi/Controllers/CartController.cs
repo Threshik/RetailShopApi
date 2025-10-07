@@ -2,7 +2,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RetailShopApi.Data;
+using RetailShopApi.DTOs;
 using RetailShopApi.Models;
+using RetailShopApi.Services.Interfaces;
 
 namespace RetailShopApi.Controllers
 {
@@ -10,51 +12,39 @@ namespace RetailShopApi.Controllers
     [ApiController]
     public class CartController : ControllerBase
     {
-        private readonly ProductDbContext _context;
+        private readonly ICartService _cartService;
 
-        public CartController(ProductDbContext context)
+        public CartController(ICartService cartService)
         {
-            _context = context;
+            _cartService = cartService;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<CartItem>>> GetCartItems()
+        public async Task<IActionResult> GetCartItems()
         {
-            return await _context.CartItems.Include( c=> c.Product).ToListAsync();
+            var items = await _cartService.GetCartItemsAsync();
+            return Ok(items);
         }
 
+
         [HttpPost("add")]
-        public async Task <IActionResult> AddToCart([FromQuery] int productId, [FromQuery] int quantity)
+        public async Task<IActionResult> AddToCart([FromQuery] int productId, [FromQuery] int quantity)
         {
-            var product = await _context.Products.FindAsync(productId);
-            if (product == null)
-            {
-                return NotFound(new { error = "Product Not Found" });
-            }
+            var result = await _cartService.AddToCartAsync(productId, quantity);
 
-            var cartItem = new CartItem
-            {
-                ProductId = productId,
-                Quantity = quantity
-            };
+            if (!result)
+                return NotFound(new { error = "Product not found" });
 
-            _context.CartItems.Add(cartItem);
-            await _context.SaveChangesAsync();
-
-
-            return Ok(new {message = "Added to cart"});
+            return Ok(new { message = "Added to cart" });
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> RemoveCartItem(int id)
         {
-            var cartItem = await _context.CartItems.FindAsync(id);
-            if (cartItem == null)
-            {
+            var success = await _cartService.RemoveCartItemAsync(id);
+
+            if (!success)
                 return NotFound();
-            }
-            _context.CartItems.Remove(cartItem);
-            await _context.SaveChangesAsync();
 
             return NoContent();
         }
@@ -62,31 +52,20 @@ namespace RetailShopApi.Controllers
         [HttpDelete("clear")]
         public async Task<IActionResult> ClearCart()
         {
-            var allItems = _context.CartItems;
-            _context.CartItems.RemoveRange(allItems);
-            await _context.SaveChangesAsync();
-
+            await _cartService.ClearCartAsync();
             return NoContent();
         }
 
         [HttpPut("update")]
-        public async Task<IActionResult> UpdateCartItemQuantity([FromBody] UpdateCartItemDto dto)
+        public async Task<IActionResult> UpdateCartItemQuantity(UpdateCartItemDto dto)
         {
-            var cartItem = await _context.CartItems.FindAsync(dto.CartItemId);
-            if (cartItem == null)
-            {
-                return NotFound(new { error = "Cart item not found." });
-            }
+            var success = await _cartService.UpdateCartItemQuantityAsync(dto);
 
-            cartItem.Quantity = dto.Quantity;
-            await _context.SaveChangesAsync();
+            if (!success)
+                return NotFound(new { error = "Cart item not found" });
 
-            return Ok(new { message = "Cart item updated." });
-        }
-        public class UpdateCartItemDto
-        {
-            public int CartItemId { get; set; }
-            public int Quantity { get; set; }
+            return Ok(new { message = "Cart item updated" });
         }
     }
 }
+
