@@ -67,7 +67,15 @@ namespace RetailShopApi.Services.Implementation
 
         public async Task<IEnumerable<ProductDto>> GetAllProductsAsync()
         {
-            return await _context.Products
+            string cacheKey = "products:all";
+            string cachedData = await _distributedCache.GetStringAsync(cacheKey);
+
+            if (!string.IsNullOrEmpty(cachedData))
+            {
+                return JsonSerializer.Deserialize<List<ProductDto>>(cachedData);
+            }
+
+            var products = await _context.Products
                 .Select(p => new ProductDto
                 {
                     Id = p.Id,
@@ -78,6 +86,14 @@ namespace RetailShopApi.Services.Implementation
                     
                 })
                 .ToListAsync();
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            };
+
+            await _distributedCache.SetStringAsync(cacheKey, JsonSerializer.Serialize(products), cacheOptions);
+
+            return products;
         }
 
         public async Task<ProductDto> GetProductByIdAsync(int id)
