@@ -121,7 +121,7 @@ namespace RetailShopApi.Services.Implementation
 
             await _context.SaveChangesAsync();
 
-            return new ProductDto
+            var resultDto = new ProductDto
             {
                 Id = product.Id,
                 Name = product.Name,
@@ -130,6 +130,15 @@ namespace RetailShopApi.Services.Implementation
                 Image = product.Image,
 
             };
+            string cacheKey = $"product:{id}";
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+            };
+
+            await _distributedCache.SetStringAsync(cacheKey, JsonSerializer.Serialize(resultDto), cacheOptions);
+
+            return resultDto;
         }
     }
 }
