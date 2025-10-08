@@ -60,6 +60,8 @@ namespace RetailShopApi.Services.Implementation
 
             _context.Products.Remove(product);
             await _context.SaveChangesAsync();
+            string cacheKey = $"product:{id}";
+            await _distributedCache.RemoveAsync(cacheKey);
             return true;
         }
 
