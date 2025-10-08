@@ -1,8 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using RetailShopApi.Data;
 using RetailShopApi.Models.DTOs;
 using RetailShopApi.Models.Entity;
 using RetailShopApi.Services.Interfaces;
+using System.Text.Json;
 
 namespace RetailShopApi.Services.Implementation
 {
@@ -10,9 +12,11 @@ namespace RetailShopApi.Services.Implementation
     {
 
         private readonly ProductDbContext _context;
-        public ProductService(ProductDbContext context)
+        private readonly IDistributedCache _distributedCache;
+        public ProductService(ProductDbContext context, IDistributedCache distributedCache)
         {
             _context = context;
+            _distributedCache = distributedCache;
         }
         public async Task<ProductDto> CreateProductAsync(ProductDto dto)
         {
@@ -67,12 +71,18 @@ namespace RetailShopApi.Services.Implementation
 
         public async Task<ProductDto> GetProductByIdAsync(int id)
         {
+            string cacheKey = $"product:{id}";
+            string cachedProduct = await _distributedCache.GetStringAsync(cacheKey);
+            if (!string.IsNullOrEmpty(cachedProduct)){
+                return JsonSerializer.Deserialize<ProductDto>(cachedProduct);
+            }
+
             var product = await _context.Products.FindAsync(id);
             if (product == null) {
                 return null;
 
             }
-            return new ProductDto
+            var dto = new ProductDto
             {
                 Id = product.Id,
                 Name = product.Name,
@@ -81,6 +91,13 @@ namespace RetailShopApi.Services.Implementation
                 Image = product.Image,
 
             };
+             var cacheOptions = new DistributedCacheEntryOptions
+             {
+                 AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+             };
+            await _distributedCache.SetStringAsync(cacheKey, JsonSerializer.Serialize(dto), cacheOptions);
+
+            return dto;
         }
 
         public async Task<ProductDto> UpdateProductAsync(int id, CreateProductDto dto)
