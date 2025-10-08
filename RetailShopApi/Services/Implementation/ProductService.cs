@@ -32,7 +32,7 @@ namespace RetailShopApi.Services.Implementation
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
-            return new ProductDto
+            var resultDto=  new ProductDto
             {
                 Id = product.Id,
                 Name = product.Name,
@@ -42,6 +42,15 @@ namespace RetailShopApi.Services.Implementation
 
 
             };
+
+            string cacheKey = $"product:{resultDto.Id}";
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            };
+            await _distributedCache.SetStringAsync(cacheKey, JsonSerializer.Serialize(resultDto), cacheOptions);
+
+            return resultDto;
         }
 
         public  async Task<bool> DeleteProductAsync(int id)
