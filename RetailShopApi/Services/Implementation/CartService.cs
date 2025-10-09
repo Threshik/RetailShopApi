@@ -3,22 +3,35 @@ using RetailShopApi.Data;
 using RetailShopApi.Models.Entity;
 using RetailShopApi.Models.DTOs;
 using RetailShopApi.Services.Interfaces;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace RetailShopApi.Services.Implementation
 {
+    
+
     public class CartService : ICartService
 
     {
         private readonly ProductDbContext _context;
+        private readonly IDistributedCache _distributedCache;
 
-        public CartService(ProductDbContext context)
+        public CartService(ProductDbContext context, IDistributedCache distributedCache)
         {
             _context = context;
+            _distributedCache = distributedCache;
         }
+        private const string CartCacheKey = "cart:items";
 
         public async Task<IEnumerable<CartItemDto>> GetCartItemsAsync()
         {
-            return await _context.CartItems
+            string cachedData = await _distributedCache.GetStringAsync(CartCacheKey);
+            if (!string.IsNullOrEmpty(cachedData))
+            {
+                //json to object
+                return JsonSerializer.Deserialize<List<CartItemDto>>(cachedData);
+            }
+            var cartItems =  await _context.CartItems
                 .Include(c => c.Product)
                 .Select(c => new CartItemDto
                 {
@@ -27,6 +40,13 @@ namespace RetailShopApi.Services.Implementation
                     Quantity = c.Quantity
                 })
                 .ToListAsync();
+
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            };
+            await _distributedCache.SetStringAsync(CartCacheKey, JsonSerializer.Serialize(cartItems), cacheOptions);
+            return cartItems;
         }
 
         public async Task<bool> AddToCartAsync(int productId, int quantity)
