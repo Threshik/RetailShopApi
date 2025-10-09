@@ -62,6 +62,7 @@ namespace RetailShopApi.Services.Implementation
 
             _context.CartItems.Add(cartItem);
             await _context.SaveChangesAsync();
+            await _distributedCache.RemoveAsync(CartCacheKey);
             return true;
         }
 
@@ -72,6 +73,7 @@ namespace RetailShopApi.Services.Implementation
 
             _context.CartItems.Remove(item);
             await _context.SaveChangesAsync();
+            await _distributedCache.RemoveAsync(CartCacheKey);
             return true;
         }
         public async Task<bool> ClearCartAsync()
@@ -79,6 +81,7 @@ namespace RetailShopApi.Services.Implementation
             var items = _context.CartItems;
             _context.CartItems.RemoveRange(items);
             await _context.SaveChangesAsync();
+            await _distributedCache.RemoveAsync(CartCacheKey);
             return true;
         }
         public async Task<bool> UpdateCartItemQuantityAsync(UpdateCartItemDto dto)
@@ -88,6 +91,7 @@ namespace RetailShopApi.Services.Implementation
 
             item.Quantity = dto.Quantity;
             await _context.SaveChangesAsync();
+            await _distributedCache.RemoveAsync(CartCacheKey);
             return true;
         }
 
