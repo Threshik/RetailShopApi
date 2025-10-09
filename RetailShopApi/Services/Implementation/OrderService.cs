@@ -1,18 +1,33 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using RetailShopApi.Data;
 using RetailShopApi.Models.DTOs;
 using RetailShopApi.Models.Entity;
 using RetailShopApi.Services.Interfaces;
+using System.Text.Json;
 
 namespace RetailShopApi.Services.Implementation
 {
-    public class OrderService(ProductDbContext context) : IOrderService
+    public class OrderService : IOrderService
     {
-        private readonly ProductDbContext _context = context;
+        private readonly ProductDbContext _context;
+        private readonly IDistributedCache _distributedCache;
+
+        public OrderService(ProductDbContext context, IDistributedCache distributedCache)
+        {
+            _context = context;
+            _distributedCache = distributedCache;
+        }
+
+        private const string orderCacheKey = "orders:all";
 
         public async Task<IEnumerable<OrderDto>> GetAllOrdersAsync()
         {
-            return await _context.Orders
+            var cachedData = await _distributedCache.GetStringAsync(orderCacheKey);
+            if (!string.IsNullOrEmpty(cachedData)) { 
+                return JsonSerializer.Deserialize<List<OrderDto>>(cachedData);
+            }
+            var orders =  await _context.Orders
                 .Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.Product)
                 .Select(o => new OrderDto
@@ -29,6 +44,14 @@ namespace RetailShopApi.Services.Implementation
                     }).ToList()
                 })
                 .ToListAsync();
+
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            };
+            var jsonData = JsonSerializer.Serialize(orders);
+            await _distributedCache.SetStringAsync(orderCacheKey, jsonData, cacheOptions);
+            return orders;
         }
 
         public async Task<bool> PlaceOrderAsync()
@@ -63,6 +86,8 @@ namespace RetailShopApi.Services.Implementation
 
             _context.CartItems.RemoveRange(cartItems);
             await _context.SaveChangesAsync();
+
+            await _distributedCache.RemoveAsync(orderCacheKey);
 
             return true;
         
