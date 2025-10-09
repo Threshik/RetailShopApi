@@ -13,6 +13,7 @@ namespace RetailShopApi.Services.Implementation
 
         private readonly ProductDbContext _context;
         private readonly IDistributedCache _distributedCache;
+
         public ProductService(ProductDbContext context, IDistributedCache distributedCache)
         {
             _context = context;
@@ -32,7 +33,7 @@ namespace RetailShopApi.Services.Implementation
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
-            var resultDto=  new ProductDto
+            var resultDto =  new ProductDto
             {
                 Id = product.Id,
                 Name = product.Name,
