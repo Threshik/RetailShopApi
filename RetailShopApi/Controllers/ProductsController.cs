@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RetailShopApi.Data;
@@ -21,13 +22,17 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpGet]
-       public async Task<ActionResult<IEnumerable<Product>>> GetAllProducts()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<Product>>> GetAllProducts()
         {
             var products = await _productService.GetAllProductsAsync();
             return Ok(products);
         }
 
         [HttpGet("{id}")]
+        //[AllowAnonymous]
+        [Authorize]
+
         public async Task<ActionResult<Product>> GetProductById(int id)
         {
             var product = await _productService.GetProductByIdAsync(id);
@@ -36,6 +41,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpPost]
+        [Authorize]
         public async Task<ActionResult<Product>> CreateProduct(ProductDto dto)
         {
             var product = await _productService.CreateProductAsync(dto);
@@ -43,6 +49,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize]
         public async Task<IActionResult> UpdateProduct(int id, CreateProductDto dto)
         {
             var updated = await _productService.UpdateProductAsync(id, dto);
@@ -52,6 +59,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> DeleteProduct(int id)
         {
             var success = await _productService.DeleteProductAsync(id);
