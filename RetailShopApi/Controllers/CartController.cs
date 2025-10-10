@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RetailShopApi.Data;
@@ -28,6 +29,7 @@ namespace RetailShopApi.Controllers
 
 
         [HttpPost("add")]
+        [Authorize]
         public async Task<IActionResult> AddToCart([FromQuery] int productId, [FromQuery] int quantity)
         {
             var result = await _cartService.AddToCartAsync(productId, quantity);
@@ -39,6 +41,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> RemoveCartItem(int id)
         {
             var success = await _cartService.RemoveCartItemAsync(id);
@@ -50,6 +53,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpDelete("clear")]
+        [Authorize]
         public async Task<IActionResult> ClearCart()
         {
             await _cartService.ClearCartAsync();
@@ -57,6 +61,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpPut("update")]
+        [Authorize]
         public async Task<IActionResult> UpdateCartItemQuantity(UpdateCartItemDto dto)
         {
             var success = await _cartService.UpdateCartItemQuantityAsync(dto);
