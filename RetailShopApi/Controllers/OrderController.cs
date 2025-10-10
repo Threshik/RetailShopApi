@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RetailShopApi.Data;
@@ -19,6 +20,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpGet]
+        [Authorize]
         public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders()
         {
             var orders = await _orderService.GetAllOrdersAsync();
@@ -26,6 +28,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpPost("place")]
+        [Authorize]
         public async Task<IActionResult> PlaceOrder()
         {
 
