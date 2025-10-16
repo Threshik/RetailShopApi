@@ -123,7 +123,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine("⚠️ Error parsing realm_access: " + ex.Message);
+                        Console.WriteLine("Error parsing realm_access: " + ex.Message);
                     }
                 }
 

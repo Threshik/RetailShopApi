@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System;
 using System.Linq;
+using System.Net.Http.Headers;
 
 namespace RetailShopApi.Services
 {
@@ -108,5 +109,54 @@ namespace RetailShopApi.Services
                 return null;
             }
         }
+
+        public async Task<string?> CreateClientAsync(string clientId, string redirectUri)
+        {
+            try
+            {
+                var token = await GetAdminTokenAsync();
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                var clientData = new
+                {
+                    clientId = clientId,
+                    enabled = true,
+                    publicClient = true,
+                    redirectUris = new[] { redirectUri },
+                    protocol = "openid-connect",
+                    standardFlowEnabled = true
+
+                };
+
+                var content = new StringContent(JsonSerializer.Serialize(clientData), Encoding.UTF8, "application/json");
+
+                var response = await _httpClient.PostAsync($"{_serverUrl}/admin/realms/{_realm}/clients", content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Keycloak create client failed: {response.StatusCode} - {errorBody}");
+                    return null;
+                }
+                if (response.Headers.TryGetValues("Location", out var locationValues))
+                {
+                    var locationUrl = locationValues.FirstOrDefault();
+                    if (!string.IsNullOrEmpty(locationUrl))
+                    {
+                        var keycloakClientId = locationUrl.Split('/').Last();
+                        Console.WriteLine($"Keycloak client created successfully: {keycloakClientId}");
+                        return keycloakClientId;
+                    }
+                }
+                Console.WriteLine("Client created");
+                return clientId;
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception during Keycloak client creation: {ex.Message}");
+                return null;
+            }
+    }
     }
 }

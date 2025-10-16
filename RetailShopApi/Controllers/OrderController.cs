@@ -45,12 +45,12 @@ namespace RetailShopApi.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllOrders()
         {
-            var customerId = await GetCustomerIdAsync(); // Get from Keycloak token
+            var customerId = await GetCustomerIdAsync(); 
 
             var orders = await _context.Orders
                 .Include(o => o.Customer)
                 .Include(o => o.OrderItems)
-                    .ThenInclude(oi => oi.Product) // Include product details
+                    .ThenInclude(oi => oi.Product) 
                 .Where(o => o.CustomerId == customerId)
                 .Select(o => new OrderDto
                 {
