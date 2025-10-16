@@ -30,8 +30,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpGet("{id}")]
-        //[AllowAnonymous]
-        [Authorize]
+        [AllowAnonymous]
 
         public async Task<ActionResult<Product>> GetProductById(int id)
         {
@@ -41,7 +40,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpPost]
-        [Authorize]
+        [Authorize(Policy ="AdminOnly")]
         public async Task<ActionResult<Product>> CreateProduct(ProductDto dto)
         {
             var product = await _productService.CreateProductAsync(dto);
@@ -49,7 +48,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> UpdateProduct(int id, CreateProductDto dto)
         {
             var updated = await _productService.UpdateProductAsync(id, dto);
@@ -59,7 +58,7 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
             var success = await _productService.DeleteProductAsync(id);

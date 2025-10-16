@@ -4,7 +4,7 @@ namespace RetailShopApi.Services.Interfaces
 {
     public interface IOrderService
     {
-        Task<IEnumerable<OrderDto>> GetAllOrdersAsync();
-        Task<bool> PlaceOrderAsync();
+        Task<IEnumerable<OrderDto>> GetAllOrdersAsync(int customerId);
+        Task<bool> PlaceOrderAsync(int customerId);
     }
 }

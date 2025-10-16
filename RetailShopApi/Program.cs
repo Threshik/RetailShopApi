@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using RetailShopApi.Data;
+using RetailShopApi.Services;
 using RetailShopApi.Services.Implementation;
 using RetailShopApi.Services.Interfaces;
 
@@ -74,15 +75,22 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.InstanceName = "MyAppRedisInstance:";
 });
 
-// JWT Bearer Authentication (Keycloak)
+// ---------------------- JWT Keycloak ---------------------- //
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = "http://localhost:8080/realms/demo"; // Keycloak realm
-        options.Audience = "retail-app";                         // Keycloak client
+        options.Authority = "http://localhost:8080/realms/demo";
+        options.Audience = "retail-app";
         options.RequireHttpsMetadata = false;
 
-        // Debugging events
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateAudience = false,
+            NameClaimType = "preferred_username",
+            RoleClaimType = System.Security.Claims.ClaimTypes.Role
+        };
+
         options.Events = new JwtBearerEvents
         {
             OnAuthenticationFailed = ctx =>
@@ -92,21 +100,90 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             },
             OnTokenValidated = ctx =>
             {
-                Console.WriteLine("Token Validated for: " + ctx.Principal.Identity.Name);
+                var identity = ctx.Principal?.Identity as System.Security.Claims.ClaimsIdentity;
+
+                // Extract realm roles
+                var realmAccess = ctx.Principal?.FindFirst("realm_access")?.Value;
+                if (!string.IsNullOrEmpty(realmAccess))
+                {
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(realmAccess);
+                        if (doc.RootElement.TryGetProperty("roles", out var rolesElement))
+                        {
+                            foreach (var role in rolesElement.EnumerateArray())
+                            {
+                                var roleName = role.GetString();
+                                if (!string.IsNullOrEmpty(roleName))
+                                {
+                                    identity?.AddClaim(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, roleName));
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("⚠️ Error parsing realm_access: " + ex.Message);
+                    }
+                }
+
+                // Extract client roles (retail-app)
+                var resourceAccess = ctx.Principal?.FindFirst("resource_access")?.Value;
+                if (!string.IsNullOrEmpty(resourceAccess))
+                {
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(resourceAccess);
+                        if (doc.RootElement.TryGetProperty("retail-app", out var clientAccess) &&
+                            clientAccess.TryGetProperty("roles", out var rolesElement))
+                        {
+                            foreach (var role in rolesElement.EnumerateArray())
+                            {
+                                var roleName = role.GetString();
+                                if (!string.IsNullOrEmpty(roleName))
+                                {
+                                    identity?.AddClaim(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, roleName));
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Error parsing resource_access: " + ex.Message);
+                    }
+                }
+
+                // Debug output
+                Console.WriteLine($"Token validated for user: {ctx.Principal.Identity?.Name}");
+                var roles = identity?.Claims
+                    .Where(c => c.Type == System.Security.Claims.ClaimTypes.Role)
+                    .Select(c => c.Value);
+                Console.WriteLine("➡️ Roles: " + string.Join(", ", roles ?? Array.Empty<string>()));
+
                 return Task.CompletedTask;
             }
         };
     });
 
-// Authorization
-builder.Services.AddAuthorization();
+// ---------------------- Authorization ---------------------- //
 
-// Application Services
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("admin"));
+    options.AddPolicy("AuthenticatedUser", policy => policy.RequireAuthenticatedUser());
+});
+
+// ---------------------- Application Services ---------------------- //
+
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<KeycloakService>();
+
+
 
 // ---------------------- App Pipeline ---------------------- //
+
 var app = builder.Build();
 
 // Swagger
@@ -121,10 +198,8 @@ if (app.Environment.IsDevelopment())
 
 // Middleware
 app.UseCors(MyAllowSpecificOrigins);
-
 app.UseAuthentication(); // Must come before Authorization
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

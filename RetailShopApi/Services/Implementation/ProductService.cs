@@ -51,6 +51,9 @@ namespace RetailShopApi.Services.Implementation
             };
             await _distributedCache.SetStringAsync(cacheKey, JsonSerializer.Serialize(resultDto), cacheOptions);
 
+            //invalidating the cache
+            await _distributedCache.RemoveAsync("products:all");
+
             return resultDto;
         }
 
@@ -63,6 +66,8 @@ namespace RetailShopApi.Services.Implementation
             await _context.SaveChangesAsync();
             string cacheKey = $"product:{id}";
             await _distributedCache.RemoveAsync(cacheKey);
+
+            await _distributedCache.RemoveAsync("products:all");
             return true;
         }
 
@@ -157,6 +162,7 @@ namespace RetailShopApi.Services.Implementation
 
             await _distributedCache.SetStringAsync(cacheKey, JsonSerializer.Serialize(resultDto), cacheOptions);
 
+            await _distributedCache.RemoveAsync("products:all");
             return resultDto;
         }
     }

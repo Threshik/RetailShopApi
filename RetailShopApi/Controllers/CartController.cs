@@ -1,38 +1,58 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using RetailShopApi.Data;
-using RetailShopApi.Models;
+using RetailShopApi.Data; // ✅ for AppDbContext
 using RetailShopApi.Models.DTOs;
 using RetailShopApi.Services.Interfaces;
+using System;
+using System.Security.Claims;
 
 namespace RetailShopApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class CartController : ControllerBase
     {
         private readonly ICartService _cartService;
+        private readonly ProductDbContext _context; 
 
-        public CartController(ICartService cartService)
+        public CartController(ICartService cartService, ProductDbContext context)
         {
             _cartService = cartService;
+            _context = context;
+        }
+
+        /// <summary>
+        /// Gets the internal CustomerId (int) based on the Keycloak ID (GUID) from the token.
+        /// </summary>
+        private int GetCustomerId()
+        {
+            var keycloakId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(keycloakId))
+                throw new Exception("Keycloak ID not found in token.");
+
+            var customer = _context.Customers.FirstOrDefault(c => c.KeycloakId == keycloakId);
+
+            if (customer == null)
+                throw new Exception("Customer not found in database for this Keycloak user.");
+
+            return customer.Id;
         }
 
         [HttpGet]
         public async Task<IActionResult> GetCartItems()
         {
-            var items = await _cartService.GetCartItemsAsync();
+            var customerId = GetCustomerId();
+            var items = await _cartService.GetCartItemsAsync(customerId);
             return Ok(items);
         }
 
-
         [HttpPost("add")]
-        [Authorize]
         public async Task<IActionResult> AddToCart([FromQuery] int productId, [FromQuery] int quantity)
         {
-            var result = await _cartService.AddToCartAsync(productId, quantity);
+            var customerId = GetCustomerId();
+            var result = await _cartService.AddToCartAsync(customerId, productId, quantity);
 
             if (!result)
                 return NotFound(new { error = "Product not found" });
@@ -41,10 +61,10 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize]
         public async Task<IActionResult> RemoveCartItem(int id)
         {
-            var success = await _cartService.RemoveCartItemAsync(id);
+            var customerId = GetCustomerId();
+            var success = await _cartService.RemoveCartItemAsync(customerId, id);
 
             if (!success)
                 return NotFound();
@@ -53,18 +73,18 @@ namespace RetailShopApi.Controllers
         }
 
         [HttpDelete("clear")]
-        [Authorize]
         public async Task<IActionResult> ClearCart()
         {
-            await _cartService.ClearCartAsync();
+            var customerId = GetCustomerId();
+            await _cartService.ClearCartAsync(customerId);
             return NoContent();
         }
 
         [HttpPut("update")]
-        [Authorize]
         public async Task<IActionResult> UpdateCartItemQuantity(UpdateCartItemDto dto)
         {
-            var success = await _cartService.UpdateCartItemQuantityAsync(dto);
+            var customerId = GetCustomerId();
+            var success = await _cartService.UpdateCartItemQuantityAsync(customerId, dto);
 
             if (!success)
                 return NotFound(new { error = "Cart item not found" });
@@ -73,4 +93,3 @@ namespace RetailShopApi.Controllers
         }
     }
 }
-

@@ -12,6 +12,7 @@ namespace RetailShopApi.Services.Implementation
     {
         private readonly ProductDbContext _context;
         private readonly IDistributedCache _distributedCache;
+        private const string OrderCacheKeyPrefix = "orders:";
 
         public OrderService(ProductDbContext context, IDistributedCache distributedCache)
         {
@@ -19,17 +20,18 @@ namespace RetailShopApi.Services.Implementation
             _distributedCache = distributedCache;
         }
 
-        private const string orderCacheKey = "orders:all";
-
-        public async Task<IEnumerable<OrderDto>> GetAllOrdersAsync()
+        public async Task<IEnumerable<OrderDto>> GetAllOrdersAsync(int customerId)
         {
-            var cachedData = await _distributedCache.GetStringAsync(orderCacheKey);
-            if (!string.IsNullOrEmpty(cachedData)) { 
-                return JsonSerializer.Deserialize<List<OrderDto>>(cachedData);
-            }
-            var orders =  await _context.Orders
+            var cacheKey = $"{OrderCacheKeyPrefix}{customerId}";
+            var cachedData = await _distributedCache.GetStringAsync(cacheKey);
+
+            if (!string.IsNullOrEmpty(cachedData))
+                return JsonSerializer.Deserialize<List<OrderDto>>(cachedData)!;
+
+            var orders = await _context.Orders
                 .Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.Product)
+                .Where(o => o.CustomerId == customerId)
                 .Select(o => new OrderDto
                 {
                     Id = o.Id,
@@ -49,15 +51,16 @@ namespace RetailShopApi.Services.Implementation
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
             };
-            var jsonData = JsonSerializer.Serialize(orders);
-            await _distributedCache.SetStringAsync(orderCacheKey, jsonData, cacheOptions);
+
+            await _distributedCache.SetStringAsync(cacheKey, JsonSerializer.Serialize(orders), cacheOptions);
             return orders;
         }
 
-        public async Task<bool> PlaceOrderAsync()
+        public async Task<bool> PlaceOrderAsync(int customerId)
         {
             var cartItems = await _context.CartItems
                 .Include(c => c.Product)
+                .Where(c => c.CustomerId == customerId)
                 .ToListAsync();
 
             if (cartItems == null || !cartItems.Any())
@@ -67,6 +70,7 @@ namespace RetailShopApi.Services.Implementation
 
             var newOrder = new Order
             {
+                CustomerId = customerId,
                 OrderDate = DateTime.UtcNow,
                 TotalAmount = totalAmount,
                 OrderItems = new List<OrderItem>()
@@ -82,15 +86,13 @@ namespace RetailShopApi.Services.Implementation
             }
 
             _context.Orders.Add(newOrder);
-            await _context.SaveChangesAsync();
-
             _context.CartItems.RemoveRange(cartItems);
             await _context.SaveChangesAsync();
 
-            await _distributedCache.RemoveAsync(orderCacheKey);
+            await _distributedCache.RemoveAsync($"{OrderCacheKeyPrefix}{customerId}");
+            await _distributedCache.RemoveAsync($"cart:items:{customerId}");
 
             return true;
-        
-    }
+        }
     }
 }
