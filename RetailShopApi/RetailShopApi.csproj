@@ -20,6 +20,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.14.0" />
     <PackageReference Include="RedisExtension" Version="1.0.0" />
+    <PackageReference Include="Schick.Keycloak.RestApiClient" Version="26.2.0" />
     <PackageReference Include="StackExchange.Redis" Version="2.9.25" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
   </ItemGroup>

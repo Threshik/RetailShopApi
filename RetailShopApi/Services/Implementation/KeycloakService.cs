@@ -1,11 +1,6 @@
-﻿using System.Net.Http;
+﻿using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System;
-using System.Linq;
-using System.Net.Http.Headers;
 
 namespace RetailShopApi.Services
 {
@@ -50,21 +45,22 @@ namespace RetailShopApi.Services
 
         //Create user and extract Keycloak ID
         public async Task<string?> CreateUserAsync(
-            string username,
-            string email,
-            string firstName,
-            string lastName,
-            string password,
-            string phoneNumber = "",
-            string gender = "")
+     string username,
+     string email,
+     string firstName,
+     string lastName,
+     string password,
+     string phoneNumber = "",
+     string gender = "")
         {
             try
             {
                 var token = await GetServiceAccountTokenAsync();
+                _httpClient.DefaultRequestHeaders.Clear();
                 _httpClient.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", token);
 
-                // Include custom attributes
+                // ✅ Correct attribute and body structure
                 var user = new
                 {
                     username,
@@ -72,49 +68,54 @@ namespace RetailShopApi.Services
                     firstName,
                     lastName,
                     enabled = true,
-                    attributes = new Dictionary<string, object?>
-                    {
-                        { "phoneNumber", phoneNumber },
-                        { "gender", gender }
-                    },
+                    emailVerified = false,
+                    attributes = new Dictionary<string, string[]>
+            {
+                { "phoneNumber", new[] { phoneNumber ?? "" } },
+                { "gender", new[] { gender ?? "" } }
+            },
                     credentials = new[]
                     {
-                        new { type = "password", value = password, temporary = false }
-                    }
+                new { type = "password", value = password, temporary = false }
+            }
                 };
 
                 var content = new StringContent(JsonSerializer.Serialize(user), Encoding.UTF8, "application/json");
-
                 var result = await _httpClient.PostAsync($"{_serverUrl}/admin/realms/{_realm}/users", content);
 
-                if (!result.IsSuccessStatusCode)
-                {
-                    var error = await result.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Keycloak create user failed: {error}");
-                    return null;
-                }
+                Console.WriteLine($"Keycloak response status: {result.StatusCode}");
 
-                // Extract user ID from the Location header
-                if (result.Headers.TryGetValues("Location", out var locationValues))
+                // ✅ Accept both 201 and 204 as success
+                if (result.StatusCode == System.Net.HttpStatusCode.Created ||
+                    result.StatusCode == System.Net.HttpStatusCode.NoContent)
                 {
-                    var locationUrl = locationValues.FirstOrDefault();
-                    if (!string.IsNullOrEmpty(locationUrl))
+                    if (result.Headers.TryGetValues("Location", out var locationValues))
                     {
-                        var keycloakId = locationUrl.Split('/').Last();
-                        Console.WriteLine($"Keycloak user created successfully: {keycloakId}");
-                        return keycloakId;
+                        var locationUrl = locationValues.FirstOrDefault();
+                        if (!string.IsNullOrEmpty(locationUrl))
+                        {
+                            var keycloakId = locationUrl.Split('/').Last();
+                            Console.WriteLine($"✅ Keycloak user created successfully: {keycloakId}");
+                            return keycloakId;
+                        }
                     }
+
+                    Console.WriteLine("✅ User created successfully (no Location header).");
+                    return "Success";
                 }
 
-                Console.WriteLine("Keycloak user created but could not extract ID from Location header.");
+                // ❌ Log failure reason
+                var error = await result.Content.ReadAsStringAsync();
+                Console.WriteLine($"❌ Keycloak create user failed: {result.StatusCode} - {error}");
                 return null;
-            } 
+            }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception during Keycloak user creation: {ex.Message}");
+                Console.WriteLine($"💥 Exception during Keycloak user creation: {ex.Message}");
                 return null;
             }
         }
+
 
         public async Task<string?> CreateClientAsync(string clientId, string redirectUri)
         {
@@ -164,6 +165,6 @@ namespace RetailShopApi.Services
                 Console.WriteLine($"Exception during Keycloak client creation: {ex.Message}");
                 return null;
             }
-    }
+        }
     }
 }
