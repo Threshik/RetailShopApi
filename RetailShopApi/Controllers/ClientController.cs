@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using RetailShopApi.Models.DTOs;
 using RetailShopApi.Services;
 
 namespace RetailShopApi.Controllers
@@ -14,9 +15,9 @@ namespace RetailShopApi.Controllers
         {
             _keyCloakService = keycloakService;
         }
-
+        
         [HttpPost("create-client")]
-        public async Task<IActionResult> CreateClient([FromBody] ClientRequest request)
+        public async Task<IActionResult> CreateClient([FromBody] ClientRequestDto request)
         {
             if (string.IsNullOrEmpty(request.ClientId) || string.IsNullOrEmpty(request.RedirectUri))
                 return BadRequest("ClientId and RedirectUri are required.");
@@ -29,11 +30,6 @@ namespace RetailShopApi.Controllers
             return Ok(new { message = "Client created successfully", clientId = request.ClientId });
         }
 
-        public class ClientRequest
-        {
-            public string ClientId { get; set; } = string.Empty;
-            public string RedirectUri { get; set; } = string.Empty;
-        }
-
+        
     }
 }

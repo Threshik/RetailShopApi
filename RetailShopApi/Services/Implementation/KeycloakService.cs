@@ -12,29 +12,35 @@ namespace RetailShopApi.Services
     public class KeycloakService
     {
         private readonly HttpClient _httpClient;
-        private readonly string _realm = "demo";
-        private readonly string _serverUrl = "http://localhost:8080";
-        private readonly string _adminUser = "admin";
-        private readonly string _adminPass = "admin";
+        private readonly string _realm;
+        private readonly string _serverUrl;
+        private readonly string _clientId;
+        private readonly string _clientSecret;
 
-        public KeycloakService()
+        public KeycloakService(IConfiguration configuration)
         {
             _httpClient = new HttpClient();
+
+            var keycloakConfig = configuration.GetSection("Keycloak");
+            _realm = keycloakConfig["Realm"];
+            _serverUrl = keycloakConfig["ServerUrl"];
+            _clientId = keycloakConfig["ManagementClientId"];
+            _clientSecret = keycloakConfig["ManagementClientSecret"];
         }
 
+
         // Get admin token from Keycloak
-        private async Task<string> GetAdminTokenAsync()
+        private async Task<string> GetServiceAccountTokenAsync()
         {
             var data = new FormUrlEncodedContent(new[]
             {
-                new KeyValuePair<string, string>("client_id", "admin-cli"),
-                new KeyValuePair<string, string>("username", _adminUser),
-                new KeyValuePair<string, string>("password", _adminPass),
-                new KeyValuePair<string, string>("grant_type", "password"),
+                new KeyValuePair<string, string>("grant_type", "client_credentials"),
+                new KeyValuePair<string, string>("client_id", _clientId),
+                new KeyValuePair<string, string>("client_secret", _clientSecret)
             });
 
             var response = await _httpClient.PostAsync(
-                $"{_serverUrl}/realms/master/protocol/openid-connect/token", data);
+                $"{_serverUrl}/realms/{_realm}/protocol/openid-connect/token", data);
 
             response.EnsureSuccessStatusCode();
 
@@ -54,9 +60,9 @@ namespace RetailShopApi.Services
         {
             try
             {
-                var token = await GetAdminTokenAsync();
+                var token = await GetServiceAccountTokenAsync();
                 _httpClient.DefaultRequestHeaders.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                    new AuthenticationHeaderValue("Bearer", token);
 
                 // Include custom attributes
                 var user = new
@@ -114,7 +120,7 @@ namespace RetailShopApi.Services
         {
             try
             {
-                var token = await GetAdminTokenAsync();
+                var token = await GetServiceAccountTokenAsync();
                 _httpClient.DefaultRequestHeaders.Clear();
                 _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -125,7 +131,8 @@ namespace RetailShopApi.Services
                     publicClient = true,
                     redirectUris = new[] { redirectUri },
                     protocol = "openid-connect",
-                    standardFlowEnabled = true
+                    standardFlowEnabled = true,
+                    directAccessGrantsEnabled = false
 
                 };
 
