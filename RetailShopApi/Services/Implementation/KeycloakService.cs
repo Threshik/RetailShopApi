@@ -1,21 +1,20 @@
-﻿using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
+﻿using FS.Keycloak.RestApiClient.Api;
+using FS.Keycloak.RestApiClient.Authentication.ClientFactory;
+using FS.Keycloak.RestApiClient.Authentication.Flow;
+using FS.Keycloak.RestApiClient.ClientFactory;
+using FS.Keycloak.RestApiClient.Model;
 
 namespace RetailShopApi.Services
 {
     public class KeycloakService
     {
-        private readonly HttpClient _httpClient;
-        private readonly string _realm;
-        private readonly string _serverUrl;
-        private readonly string _clientId;
-        private readonly string _clientSecret;
+        private readonly string? _realm;
+        private readonly string? _serverUrl;
+        private readonly string? _clientId;
+        private readonly string? _clientSecret;
 
         public KeycloakService(IConfiguration configuration)
         {
-            _httpClient = new HttpClient();
-
             var keycloakConfig = configuration.GetSection("Keycloak");
             _realm = keycloakConfig["Realm"];
             _serverUrl = keycloakConfig["ServerUrl"];
@@ -23,146 +22,113 @@ namespace RetailShopApi.Services
             _clientSecret = keycloakConfig["ManagementClientSecret"];
         }
 
-
-        // Get admin token from Keycloak
-        private async Task<string> GetServiceAccountTokenAsync()
-        {
-            var data = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("grant_type", "client_credentials"),
-                new KeyValuePair<string, string>("client_id", _clientId),
-                new KeyValuePair<string, string>("client_secret", _clientSecret)
-            });
-
-            var response = await _httpClient.PostAsync(
-                $"{_serverUrl}/realms/{_realm}/protocol/openid-connect/token", data);
-
-            response.EnsureSuccessStatusCode();
-
-            var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            return json.RootElement.GetProperty("access_token").GetString();
-        }
-
-        //Create user and extract Keycloak ID
+        // Create user and extract Keycloak ID
         public async Task<string?> CreateUserAsync(
-     string username,
-     string email,
-     string firstName,
-     string lastName,
-     string password,
-     string phoneNumber = "",
-     string gender = "")
+            string username,
+            string email,
+            string firstName,
+            string lastName,
+            string password,
+            string phoneNumber = "",
+            string gender = "")
         {
             try
             {
-                var token = await GetServiceAccountTokenAsync();
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", token);
-
-                // ✅ Correct attribute and body structure
-                var user = new
+                // Set up authentication
+                var credentials = new ClientCredentialsFlow
                 {
-                    username,
-                    email,
-                    firstName,
-                    lastName,
-                    enabled = true,
-                    emailVerified = false,
-                    attributes = new Dictionary<string, string[]>
-            {
-                { "phoneNumber", new[] { phoneNumber ?? "" } },
-                { "gender", new[] { gender ?? "" } }
-            },
-                    credentials = new[]
-                    {
-                new { type = "password", value = password, temporary = false }
-            }
+                    KeycloakUrl = _serverUrl,
+                    Realm = _realm,
+                    ClientId = _clientId,
+                    ClientSecret = _clientSecret
                 };
 
-                var content = new StringContent(JsonSerializer.Serialize(user), Encoding.UTF8, "application/json");
-                var result = await _httpClient.PostAsync($"{_serverUrl}/admin/realms/{_realm}/users", content);
+                using var httpClient = AuthenticationHttpClientFactory.Create(credentials);
+                using var usersApi = ApiClientFactory.Create<UsersApi>(httpClient);
 
-                Console.WriteLine($"Keycloak response status: {result.StatusCode}");
-
-                // ✅ Accept both 201 and 204 as success
-                if (result.StatusCode == System.Net.HttpStatusCode.Created ||
-                    result.StatusCode == System.Net.HttpStatusCode.NoContent)
+                // Create user representation with custom attributes
+                var userRepresentation = new UserRepresentation
                 {
-                    if (result.Headers.TryGetValues("Location", out var locationValues))
+                    Username = username,
+                    Email = email,
+                    FirstName = firstName,
+                    LastName = lastName,
+                    Enabled = true,
+                    EmailVerified = false,
+                    Attributes = new Dictionary<string, List<string>>
                     {
-                        var locationUrl = locationValues.FirstOrDefault();
-                        if (!string.IsNullOrEmpty(locationUrl))
+                        { "phoneNumber", new List<string> { phoneNumber } },
+                        { "gender", new List<string> { gender } }
+                    },
+                    Credentials = new List<CredentialRepresentation>
+                    {
+                        new CredentialRepresentation
                         {
-                            var keycloakId = locationUrl.Split('/').Last();
-                            Console.WriteLine($"✅ Keycloak user created successfully: {keycloakId}");
-                            return keycloakId;
+                            Type = "password",
+                            Value = password,
+                            Temporary = false
                         }
                     }
+                };
 
-                    Console.WriteLine("✅ User created successfully (no Location header).");
-                    return "Success";
+                // ACTUALLY CREATE THE USER (this was missing!)
+                await usersApi.PostUsersAsync(_realm, userRepresentation);
+
+                // Retrieve the created user to get their ID
+                var users = await usersApi.GetUsersAsync(_realm, username: username, exact: true);
+                var createdUser = users?.FirstOrDefault();
+
+                if (createdUser?.Id != null)
+                {
+                    Console.WriteLine($"Keycloak user '{username}' created successfully with ID: {createdUser.Id}");
+                    return createdUser.Id;
                 }
 
-                // ❌ Log failure reason
-                var error = await result.Content.ReadAsStringAsync();
-                Console.WriteLine($"❌ Keycloak create user failed: {result.StatusCode} - {error}");
+                Console.WriteLine("Keycloak user created but could not retrieve user ID.");
                 return null;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"💥 Exception during Keycloak user creation: {ex.Message}");
+                Console.WriteLine($"Exception during Keycloak user creation: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 return null;
             }
         }
 
-
-        public async Task<string?> CreateClientAsync(string clientId, string redirectUri)
+        public async Task<string?> CreateClientAsync(string clientId, string redirectUri = null)
         {
             try
             {
-                var token = await GetServiceAccountTokenAsync();
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                var clientData = new
+                var credentials = new ClientCredentialsFlow
                 {
-                    clientId = clientId,
-                    enabled = true,
-                    publicClient = true,
-                    redirectUris = new[] { redirectUri },
-                    protocol = "openid-connect",
-                    standardFlowEnabled = true,
-                    directAccessGrantsEnabled = false
-
+                    KeycloakUrl = _serverUrl,
+                    Realm = _realm,
+                    ClientId = _clientId,
+                    ClientSecret = _clientSecret
                 };
 
-                var content = new StringContent(JsonSerializer.Serialize(clientData), Encoding.UTF8, "application/json");
+                using var httpClient = AuthenticationHttpClientFactory.Create(credentials);
+                using var clientsApi = ApiClientFactory.Create<ClientsApi>(httpClient);
 
-                var response = await _httpClient.PostAsync($"{_serverUrl}/admin/realms/{_realm}/clients", content);
-                if (!response.IsSuccessStatusCode)
+                var clientRepresentation = new ClientRepresentation
                 {
-                    var errorBody = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Keycloak create client failed: {response.StatusCode} - {errorBody}");
-                    return null;
-                }
-                if (response.Headers.TryGetValues("Location", out var locationValues))
-                {
-                    var locationUrl = locationValues.FirstOrDefault();
-                    if (!string.IsNullOrEmpty(locationUrl))
-                    {
-                        var keycloakClientId = locationUrl.Split('/').Last();
-                        Console.WriteLine($"Keycloak client created successfully: {keycloakClientId}");
-                        return keycloakClientId;
-                    }
-                }
-                Console.WriteLine("Client created");
-                return clientId;
+                    ClientId = clientId,
+                    Enabled = true,
+                    PublicClient = false,
+                    StandardFlowEnabled = true,
+                    DirectAccessGrantsEnabled = true,
+                    RedirectUris = redirectUri != null ? new List<string> { redirectUri } : new List<string> { "*" }
+                };
 
+                await clientsApi.PostClientsAsync(_realm, clientRepresentation);
+
+                Console.WriteLine($"Keycloak client '{clientId}' created successfully.");
+                return "Client created successfully";
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception during Keycloak client creation: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 return null;
             }
         }
