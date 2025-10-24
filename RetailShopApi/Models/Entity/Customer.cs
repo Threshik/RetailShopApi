@@ -1,4 +1,6 @@
-﻿namespace RetailShopApi.Models.Entity
+﻿using RetailShopApi.Models.DTOs;
+
+namespace RetailShopApi.Models.Entity
 {
     public class Customer
     {
@@ -8,12 +10,17 @@
         public required string FirstName { get; set; }
         public required string LastName { get; set; }
         public required string Email { get; set; }
-        public required string PhoneNumber { get; set; }
-        public required string Gender { get; set; }
+        public required string? PhoneNumber { get; set; }
+        public required string? Gender { get; set; }
         public required string PasswordHash { get; set; }
         public string? KeycloakId { get; set; }
 
         public List<Order> Orders { get; set; } = new();
         public List<CartItem> CartItems { get; set; } = new();
+
+        public static implicit operator Customer(CustomerDto v)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

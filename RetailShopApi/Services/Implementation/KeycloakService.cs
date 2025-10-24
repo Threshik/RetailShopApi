@@ -71,10 +71,10 @@ namespace RetailShopApi.Services
                     }
                 };
 
-                // ACTUALLY CREATE THE USER (this was missing!)
+
                 await usersApi.PostUsersAsync(_realm, userRepresentation);
 
-                // Retrieve the created user to get their ID
+
                 var users = await usersApi.GetUsersAsync(_realm, username: username, exact: true);
                 var createdUser = users?.FirstOrDefault();
 
